@@ -1,10 +1,10 @@
-use chrono::{FixedOffset};
-use serde::{Deserialize, Deserializer};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt;
 use serde::de::{SeqAccess, Visitor};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "$type")]
 pub enum Val {
     // Null {
@@ -18,13 +18,15 @@ pub enum Val {
     Integer {
         #[serde(
             rename = "_value",
-            deserialize_with = "try_i64_from_str")]
+            deserialize_with = "try_i64_from_str",
+            serialize_with = "try_ser_i64")]
         value: i64,
     },
     Float {
         #[serde(
             rename = "_value",
-            deserialize_with = "try_f64_from_str")]
+            deserialize_with = "try_f64_from_str",
+            serialize_with = "try_ser_f64")]
         value: f64,
     },
     String {
@@ -46,7 +48,8 @@ pub enum Val {
     ZoneDateTime {
         #[serde(
             rename = "_value",
-            deserialize_with = "try_zdt_from_str"
+            deserialize_with = "try_zdt_from_str",
+            serialize_with = "try_ser_zdt"
         )]
         value: chrono::DateTime<FixedOffset>,
     },
@@ -54,6 +57,7 @@ pub enum Val {
         #[serde(
         rename = "_value",
         deserialize_with = "try_dt_from_str",
+        serialize_with = "try_ser_datetime"
         )]
         value: chrono::NaiveDateTime,
     },
@@ -61,35 +65,43 @@ pub enum Val {
         #[serde(
         rename = "_value",
         deserialize_with = "try_time_from_str",
+        serialize_with = "try_ser_time"
         )]
         value: chrono::NaiveTime,
     },
     Date {
         #[serde(
-        rename = "_value",
-        deserialize_with = "try_date_from_str",
+            rename = "_value",
+            deserialize_with = "try_date_from_str",
+            serialize_with = "try_ser_date"
         )]
         value: chrono::NaiveDate,
     },
     Duration {
         #[serde(
-        rename = "_value",
-        deserialize_with = "try_duration_from_str",
+            rename = "_value",
+            deserialize_with = "try_duration_from_str",
+            serialize_with = "try_ser_duration"
         )]
         value: chrono::TimeDelta,
     },
     Node {
-        #[serde(rename = "_value")]
+        #[serde(
+            rename = "_value",
+            serialize_with = "try_ser_node")]
         value: Node,
     },
     Relationship {
-        #[serde(rename = "_value")]
+        #[serde(
+            rename = "_value",
+            serialize_with = "try_ser_rel")]
         value: Relationship,
     },
     Path {
         #[serde(
             rename = "_value",
-            deserialize_with = "try_path",)]
+            deserialize_with = "try_de_path",
+            serialize_with = "try_ser_path")]
         value: Path,
     },
 }
@@ -159,7 +171,7 @@ fn try_duration_from_str<'de, D>(deserializer: D) -> Result<chrono::TimeDelta, D
     Ok(chrono::TimeDelta::new(0,0).unwrap())
 }
 
-fn try_path<'de, D>(deserializer: D) -> Result<Path, D::Error>
+fn try_de_path<'de, D>(deserializer: D) -> Result<Path, D::Error>
     where
         D: Deserializer<'de>,
 {
@@ -196,6 +208,78 @@ fn try_path<'de, D>(deserializer: D) -> Result<Path, D::Error>
 
     return deserializer.deserialize_seq(PathVisitor);
 }
+
+fn try_ser_i64<S>(int: &i64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&int.to_string())
+}
+
+fn try_ser_f64<S>(float: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&float.to_string())
+}
+
+fn try_ser_datetime<S>(datetime: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error>
+where
+S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_zdt<S>(datetime: &DateTime<FixedOffset>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+
+fn try_ser_time<S>(time: &NaiveTime, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_date<S>(date: &NaiveDate, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_duration<S>(duration: &TimeDelta, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_node<S>(node: &Node, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_rel<S>(rel: &Relationship, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
+fn try_ser_path<S>(path: &Path, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("todo")
+}
+
 
 
 
@@ -239,7 +323,7 @@ struct Body {
 mod tests {
     use super::*;
     use chrono::Timelike;
-
+    use crate::Val::{Boolean, ByteArray, Float, Integer};
     // #[test]
     // fn null_deserializes() {
     //     let test = "{ \"$type\":\"Null\", \"_value\": null }";
@@ -269,6 +353,13 @@ mod tests {
     }
 
     #[test]
+    fn bool_serializes() {
+        let input = Boolean { value: false };
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"Boolean\",\"_value\":false}");
+    }
+
+    #[test]
     fn i64_deserializes() {
         let test = "{ \"$type\":\"Integer\", \"_value\": \"10\" }";
         let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
@@ -280,6 +371,13 @@ mod tests {
                 _ => panic!("test fail"),
             };
         }
+    }
+
+    #[test]
+    fn i64_serializes() {
+        let input = Integer { value: 123 };
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"Integer\",\"_value\":\"123\"}");
     }
 
     #[test]
@@ -297,6 +395,13 @@ mod tests {
     }
 
     #[test]
+    fn f64_serializes() {
+        let input = Float { value: 1.23 };
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"Float\",\"_value\":\"1.23\"}");
+    }
+
+    #[test]
     fn string_deserializes() {
         let test = "{ \"$type\":\"String\", \"_value\": \"bert\" }";
         let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
@@ -308,6 +413,13 @@ mod tests {
                 _ => panic!("test fail"),
             };
         }
+    }
+
+    #[test]
+    fn string_serializes() {
+        let input = Val::String { value: "Grant Loves Java!".parse().unwrap() };
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"String\",\"_value\":\"Grant Loves Java!\"}");
     }
 
     #[test]
@@ -323,6 +435,14 @@ mod tests {
                 _ => panic!("test fail"),
             };
         }
+    }
+
+    #[test]
+    fn u8_serializes() {
+        let byte_array = Vec::from([1u8,2u8,3u8,4u8,255u8]);
+        let input = ByteArray { value: byte_array.into_boxed_slice() };
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"ByteArray\",\"_value\":[1,2,3,4,255]}");
     }
 
     #[test]
@@ -428,38 +548,36 @@ mod tests {
             };
         }
     }
-}
-
-#[test]
-fn nest_list_deserializes() {
-    let test = "{ \"$type\":\"List\", \"_value\": [{ \"$type\":\"List\", \"_value\": [{\"$type\":\"Integer\", \"_value\": \"10\"}] }]}";
-    let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
-    for input in inputs {
-        match *input.unwrap().body {
-            Val::List { value } => {
-                let outer = value.get(0).unwrap();
-                match outer {
-                    Val::List { value } => {
-                        let inner = value.get(0).unwrap();
-                        match inner {
-                            Val::Integer {value} => {
-                                assert_eq!(*value, 10);
+    #[test]
+    fn nest_list_deserializes() {
+        let test = "{ \"$type\":\"List\", \"_value\": [{ \"$type\":\"List\", \"_value\": [{\"$type\":\"Integer\", \"_value\": \"10\"}] }]}";
+        let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
+        for input in inputs {
+            match *input.unwrap().body {
+                Val::List { value } => {
+                    let outer = value.get(0).unwrap();
+                    match outer {
+                        Val::List { value } => {
+                            let inner = value.get(0).unwrap();
+                            match inner {
+                                Val::Integer {value} => {
+                                    assert_eq!(*value, 10);
+                                }
+                                _ => panic!("test fail"),
                             }
-                            _ => panic!("test fail"),
                         }
+                        _ => panic!("test fail"),
                     }
-                    _ => panic!("test fail"),
                 }
-            }
-            _ => panic!("test fail"),
-        };
+                _ => panic!("test fail"),
+            };
+        }
     }
-}
 
-#[test]
-fn node_deserializes() {
+    #[test]
+    fn node_deserializes() {
 
-    let test = "{
+        let test = "{
                 \"$type\": \"Node\",
                 \"_value\": {
                     \"_element_id\": \"4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13\",
@@ -472,30 +590,30 @@ fn node_deserializes() {
                     }
                 }
             }";
-    let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
-    for input in inputs {
-        match *input.unwrap().body {
-            Val::Node { value } => {
-                assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13", value.element_id);
-                let labels: &[String] = &*value.labels;
-                assert_eq!(labels,value.labels);
-                assert_eq!(1,value.properties.len());
+        let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
+        for input in inputs {
+            match *input.unwrap().body {
+                Val::Node { value } => {
+                    assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13", value.element_id);
+                    let labels: &[String] = &*value.labels;
+                    assert_eq!(labels,value.labels);
+                    assert_eq!(1,value.properties.len());
 
-                match &value.properties.get("name").unwrap() {
-                    Val::String { value } => {
-                        assert_eq!("Richard", value)
+                    match &value.properties.get("name").unwrap() {
+                        Val::String { value } => {
+                            assert_eq!("Richard", value)
+                        }
+                        _ => panic!("test fail")
                     }
-                    _ => panic!("test fail")
                 }
-            }
-            _ => panic!("test fail"),
-        };
+                _ => panic!("test fail"),
+            };
+        }
     }
-}
 
-#[test]
-fn rel_deserializes() {
-    let test = "{
+    #[test]
+    fn rel_deserializes() {
+        let test = "{
                 \"$type\": \"Relationship\",
                 \"_value\": {
                     \"_element_id\": \"5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989\",
@@ -510,31 +628,31 @@ fn rel_deserializes() {
                     }
                 }
             }";
-    let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
-    for input in inputs {
-        match *input.unwrap().body {
-            Val::Relationship { value } => {
-                assert_eq!("5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989", value.element_id);
-                assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13", value.start_node_element_id);
-                assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14", value.end_node_element_id);
-                assert_eq!("RIDES", value.type_);
-                assert_eq!(1, value.properties.len());
+        let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
+        for input in inputs {
+            match *input.unwrap().body {
+                Val::Relationship { value } => {
+                    assert_eq!("5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989", value.element_id);
+                    assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13", value.start_node_element_id);
+                    assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14", value.end_node_element_id);
+                    assert_eq!("RIDES", value.type_);
+                    assert_eq!(1, value.properties.len());
 
-                match &value.properties.get("name").unwrap() {
-                    Val::String { value } => {
-                        assert_eq!("Richard", value)
+                    match &value.properties.get("name").unwrap() {
+                        Val::String { value } => {
+                            assert_eq!("Richard", value)
+                        }
+                        _ => panic!("test fail")
                     }
-                    _ => panic!("test fail")
                 }
-            }
-            _ => panic!("test fail"),
-        };
+                _ => panic!("test fail"),
+            };
+        }
     }
-}
 
-#[test]
-fn path_deserializes() {
-    let test = "{
+    #[test]
+    fn path_deserializes() {
+        let test = "{
                 \"$type\": \"Path\",
                 \"_value\": [
                     {
@@ -565,27 +683,28 @@ fn path_deserializes() {
                     }
                 ]
             }";
-    let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
-    for input in inputs {
-        match *input.unwrap().body {
-            Val::Path { value } => {
-                assert_eq!(2, value.nodes.len());
-                assert_eq!(1, value.relationships.len());
+        let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
+        for input in inputs {
+            match *input.unwrap().body {
+                Val::Path { value } => {
+                    assert_eq!(2, value.nodes.len());
+                    assert_eq!(1, value.relationships.len());
 
-                assert_eq!(value.nodes.get(0).unwrap().element_id,
-                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
-                assert_eq!(value.nodes.get(1).unwrap().element_id,
-                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
+                    assert_eq!(value.nodes.get(0).unwrap().element_id,
+                               "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
+                    assert_eq!(value.nodes.get(1).unwrap().element_id,
+                               "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
 
-                assert_eq!(value.relationships.get(0).unwrap().element_id,
-                           "5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989");
-                assert_eq!(value.relationships.get(0).unwrap().start_node_element_id,
-                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
-                assert_eq!(value.relationships.get(0).unwrap().end_node_element_id,
-                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
-            }
-            _ => panic!("test fail"),
-        };
+                    assert_eq!(value.relationships.get(0).unwrap().element_id,
+                               "5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989");
+                    assert_eq!(value.relationships.get(0).unwrap().start_node_element_id,
+                               "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
+                    assert_eq!(value.relationships.get(0).unwrap().end_node_element_id,
+                               "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
+                }
+                _ => panic!("test fail"),
+            };
+        }
     }
 }
 
