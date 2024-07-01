@@ -1,6 +1,8 @@
 use chrono::{FixedOffset};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
+use std::fmt;
+use serde::de::{SeqAccess, Visitor};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "$type")]
@@ -161,56 +163,40 @@ fn try_path<'de, D>(deserializer: D) -> Result<Path, D::Error>
     where
         D: Deserializer<'de>,
 {
-    // let node = deserializer.deserialize_struct(Node {})
-    Ok(Path { nodes: vec![], relationships: vec![] })
+    struct PathVisitor;
+    impl<'de> Visitor<'de> for PathVisitor {
+        type Value = Path;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("struct Path")
+        }
+
+        fn visit_seq<V>(self, mut seq: V) -> Result<Path, V::Error>
+        where
+            V: SeqAccess<'de>,
+        {
+            let mut nodes = Vec::new();
+            let mut relationships = Vec::new();
+
+            while let Some(value) = seq.next_element::<Val>()? {
+                match value {
+                    Val::Node { value } => {
+                        nodes.push(value)
+                    }
+                    Val:: Relationship {value} => {
+                        relationships.push(value);
+                    },
+                    _ => { panic!("Expected Node or Relationship when deserializing Path")}
+                }
+            }
+
+            Ok(Path { nodes, relationships })
+        }
+    }
+
+    return deserializer.deserialize_seq(PathVisitor);
 }
 
-// struct PathVisitor;
-//
-// impl<'de> Visitor<'de> for PathVisitor {
-//     type Value = Path;
-//
-//     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-//         formatter.write_str("struct Path")
-//     }
-//
-//     fn visit_seq<V>(self, mut seq: V) -> Result<Path, V::Error>
-//     where
-//         V: SeqAccess<'de>,
-//     {
-//         let mut nodes = Vec::new();
-//         let mut relationships = Vec::new();
-//
-//
-//         while let elem = seq.next_element()? {
-//
-//             match elem {  }
-//             vec.push(elem);
-//         }
-//         while let Some(value) = seq.next_element::<Value>()? {
-//
-//             let my_val = serde_json::Deserializer::from().into_iter::<Body>();
-//
-//             match value {
-//                 Value::Null => {}
-//                 Value::Bool(_) => {}
-//                 Value::Number(_) => {}
-//                 Value::String(_) => {}
-//                 Value::Array(_) => {}
-//                 Value::Object(_) => {}
-//             }
-//             if value.get("type").is_some() {
-//                 let relationship: Relationship = serde_json::from_value(value).map_err(de::Error::custom)?;
-//                 relationships.push(relationship);
-//             } else {
-//                 let node: Node = serde_json::from_value(value).map_err(de::Error::custom)?;
-//                 nodes.push(node);
-//             }
-//         }
-//
-//         Ok(Path { nodes, relationships })
-//     }
-// }
 
 
 #[derive(Deserialize, Debug, Clone)]
@@ -583,8 +569,20 @@ fn path_deserializes() {
     for input in inputs {
         match *input.unwrap().body {
             Val::Path { value } => {
-                assert_eq!(0, value.nodes.len());
-                assert_eq!(0, value.relationships.len());
+                assert_eq!(2, value.nodes.len());
+                assert_eq!(1, value.relationships.len());
+
+                assert_eq!(value.nodes.get(0).unwrap().element_id,
+                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
+                assert_eq!(value.nodes.get(1).unwrap().element_id,
+                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
+
+                assert_eq!(value.relationships.get(0).unwrap().element_id,
+                           "5:ca452f2f-1fbe-4d91-8b67-486b237e24c5:1152921504606846989");
+                assert_eq!(value.relationships.get(0).unwrap().start_node_element_id,
+                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13");
+                assert_eq!(value.relationships.get(0).unwrap().end_node_element_id,
+                           "4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:14");
             }
             _ => panic!("test fail"),
         };
