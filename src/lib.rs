@@ -45,7 +45,7 @@ pub enum Val {
         #[serde(rename = "_value")]
         value: Vec<Val>,
     },
-    ZoneDateTime {
+    ZonedDateTime {
         #[serde(
             rename = "_value",
             deserialize_with = "try_zdt_from_str",
@@ -321,9 +321,11 @@ struct Body {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::string;
     use super::*;
     use chrono::Timelike;
-    use crate::Val::{Boolean, ByteArray, Float, Integer};
+    use crate::Val::{Boolean, ByteArray, DateTime, Float, Integer, Map, String, ZonedDateTime};
     // #[test]
     // fn null_deserializes() {
     //     let test = "{ \"$type\":\"Null\", \"_value\": null }";
@@ -466,6 +468,18 @@ mod tests {
     }
 
     #[test]
+    fn map_serializes() {
+        let mut map:HashMap<string::String, Box<Val>> = HashMap::new();
+        map.insert("k".to_string(), Box::from(String { value: "bert".to_string() }));
+        let input = Map { value: map };
+
+
+        let output = serde_json::to_string(&input).unwrap();
+        let test = "{\"$type\":\"Map\",\"_value\":{\"k\":{\"$type\":\"String\",\"_value\":\"bert\"}}}";
+        assert_eq!(output, test);
+    }
+
+    #[test]
     fn nest_map_deserializes() {
         let test = "{ \"$type\":\"Map\", \"_value\": {\"k\": { \"$type\":\"Map\", \"_value\":  {\"m\": { \"$type\":\"String\", \"_value\": \"bert\" } } } } }";
         let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
@@ -490,19 +504,30 @@ mod tests {
             };
         }
     }
-
     #[test]
     fn zdt_deserializes() {
-        let test = "{ \"$type\":\"ZoneDateTime\", \"_value\": \"2012-01-01T12:00:00[+02:00]\" }";
+        let test = "{ \"$type\":\"ZonedDateTime\", \"_value\": \"2012-01-01T12:00:00[+02:00]\" }";
         let inputs = serde_json::Deserializer::from_str(test).into_iter::<Body>();
         for input in inputs {
             match *input.unwrap().body {
-                Val::ZoneDateTime { value } => {
+                Val::ZonedDateTime { value } => {
                     assert_eq!(12u32, value.hour());
                 }
                 _ => panic!("test fail"),
             };
         }
+    }
+    #[test]
+    fn zdt_serializes() {
+        let zdt = chrono::DateTime::<FixedOffset>::parse_from_str(
+            "2012-01-01T12:00:00[+02:00]",
+            "%Y-%m-%dT%H:%M:%S[%:z]",
+        ).unwrap();
+
+        let input = ZonedDateTime {value: zdt};
+
+        let output = serde_json::to_string(&input).unwrap();
+        assert_eq!(output, "{\"$type\":\"ZonedDateTime\",\"_value\":\"2012-01-01T12:00:00[+02:00])\"}");
     }
     #[test]
     fn dt_deserializes() {
@@ -595,7 +620,7 @@ mod tests {
             match *input.unwrap().body {
                 Val::Node { value } => {
                     assert_eq!("4:ca452f2f-1fbe-4d91-8b67-486b237e24c5:13", value.element_id);
-                    let labels: &[String] = &*value.labels;
+                    let labels: &[string::String] = &*value.labels;
                     assert_eq!(labels,value.labels);
                     assert_eq!(1,value.properties.len());
 
